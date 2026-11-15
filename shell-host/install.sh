@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Installs bobik's shell host on Ubuntu 24.04 x86_64. Safe to run again: each step converges to the same state.
+# Installs bobik's shell host on Ubuntu 24.04 x86_64: the shell bridge, bobik's memory server and Caddy in front of both.
+# Safe to run again: each step converges to the same state.
 # Needs /etc/bobik/shell.env (root:root, mode 600) with SHELL_TOKEN=<the Worker's SHELL_TOKEN>; this script never writes it.
+# Needs Caddy, and Basic Memory installed for bobik as /home/bobik/.local/bin/bm with the project "bobik".
 # Run as root from a copy of shell-host/ that also holds the daemon as ./pi-env (or set PI_ENV_BIN).
 set -euo pipefail
 
@@ -11,6 +13,10 @@ pi_env=${PI_ENV_BIN:-$here/pi-env}
 die() { echo "install.sh: $*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || die "run as root"
 [[ -x $pi_env ]] || die "no pi-env daemon at $pi_env (copy node_modules/@earendil-works/pi-env/bin/pi-env-linux-x64/pi-env)"
+bm=/home/bobik/.local/bin/bm
+[[ -x $bm ]] || die "no Basic Memory at $bm; as bobik: uv tool install basic-memory, then bm project add bobik /home/bobik/memory"
+command -v caddy >/dev/null || die "Caddy is not installed"
+site=$(awk 'NR == 1 { print $1 }' "$here/Caddyfile")
 
 secrets=/etc/bobik/shell.env
 [[ -f $secrets ]] || die "$secrets is missing; create it (root:root, 600) with SHELL_TOKEN=..."
@@ -47,13 +53,32 @@ install -d -m 755 /opt/bobik /opt/bobik/bridge
 install -m 755 "$pi_env" /opt/bobik/pi-env
 install -m 644 "$here/bridge.ts" "$here/protocol.ts" /opt/bobik/bridge/
 
-install -m 644 "$here/bobik-bridge.service" "$here/bobik-keepalive.service" /etc/systemd/system/
+install -m 644 "$here/bobik-bridge.service" "$here/bobik-keepalive.service" "$here/bobik-memory.service" /etc/systemd/system/
+# Caddy reads SHELL_TOKEN only at start, so a changed drop-in needs a restart; a changed Caddyfile needs only a reload.
+install -d -m 755 /etc/systemd/system/caddy.service.d
+caddy_restart=no
+cmp -s "$here/caddy-bobik.conf" /etc/systemd/system/caddy.service.d/bobik.conf || caddy_restart=yes
+install -m 644 "$here/caddy-bobik.conf" /etc/systemd/system/caddy.service.d/bobik.conf
+caddy validate --adapter caddyfile --config "$here/Caddyfile" >/dev/null 2>&1 || die "Caddyfile does not validate"
+install -m 644 "$here/Caddyfile" /etc/caddy/Caddyfile
 systemctl daemon-reload
-systemctl enable --quiet bobik-bridge.service bobik-keepalive.service
-systemctl restart bobik-bridge.service bobik-keepalive.service
+systemctl enable --quiet bobik-bridge.service bobik-keepalive.service bobik-memory.service
+systemctl restart bobik-bridge.service bobik-keepalive.service bobik-memory.service
+if [[ $caddy_restart == yes ]]; then systemctl restart caddy; else systemctl reload caddy; fi
 
-for _ in $(seq 1 20); do
-	if curl -fsS http://127.0.0.1:8788/healthz; then echo; exit 0; fi
-	sleep 0.5
-done
-die "bridge did not answer on 127.0.0.1:8788; see journalctl -u bobik-bridge"
+# The memory server takes about 40 s to start on the 1/8-OCPU micro shape.
+wait_for() {
+	local what=$1; shift
+	for _ in $(seq 1 240); do
+		if "$@"; then return 0; fi
+		sleep 0.5
+	done
+	die "$what did not come up"
+}
+initialize='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"install.sh","version":"1"}}}'
+wait_for "bridge on 127.0.0.1:8788 (journalctl -u bobik-bridge)" curl -fs -o /dev/null http://127.0.0.1:8788/healthz
+wait_for "memory server on 127.0.0.1:8800 (journalctl -u bobik-memory)" curl -fs -o /dev/null -X POST http://127.0.0.1:8800/mcp \
+	-H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d "$initialize"
+status=$(curl -s -o /dev/null -w '%{http_code}' --resolve "$site:443:127.0.0.1" -X POST "https://$site/mcp")
+[[ $status == 401 ]] || die "https://$site/mcp without a token answered $status, not 401"
+echo "bridge, memory server and Caddy are up; /mcp refuses requests without the token"

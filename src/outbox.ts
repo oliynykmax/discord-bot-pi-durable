@@ -42,12 +42,6 @@ CREATE INDEX IF NOT EXISTS bobik_outbox_due ON bobik_outbox (state, retry_at);
 
 const backoff = (attempts: number) => Math.min(10 * 60_000, 5_000 * 3 ** Math.max(0, attempts - 1));
 
-/**
- * Per-part delivery records for one Discord channel. Each group is written whole before any part is sent, parts go
- * out in order, and every attempt carries a deterministic nonce with `enforce_nonce`. A send whose outcome is unknown
- * after the nonce window is reconciled against channel history; if that cannot settle it, the part is marked
- * `uncertain` instead of being posted blindly again.
- */
 export class Outbox {
 	#tail: Promise<void> = Promise.resolve();
 
@@ -61,7 +55,6 @@ export class Outbox {
 		return this.sql.exec("SELECT 1 FROM bobik_outbox WHERE group_id = ? LIMIT 1", group).toArray().length > 0;
 	}
 
-	/** Writes every part of a group, or nothing when the group exists. Call inside the caller's transaction. */
 	enqueue(group: string, text: string, replyTo?: string, now = Date.now()): void {
 		if (this.has(group)) return;
 		for (const [part, content] of chunk(text).entries()) {
@@ -82,7 +75,6 @@ export class Outbox {
 		return { blocked: count("blocked"), uncertain: count("uncertain"), pending: count("pending") + count("sending") };
 	}
 
-	/** Sends due parts. Returns when the next part is due, or undefined when nothing is waiting. Serialized per object. */
 	drain(clock: () => number = Date.now): Promise<number | undefined> {
 		const run = this.#tail.then(() => this.#drain(clock));
 		this.#tail = run.then(
@@ -143,7 +135,6 @@ export class Outbox {
 		return this.#next()?.retry_at;
 	}
 
-	/** An attempt older than the nonce window: look for it in channel history before deciding to send again. */
 	async #reconcile(row: Row): Promise<"settled" | "retry"> {
 		const history = await this.rest().messagesAfter(this.channelId(), snowflakeAt((row.attempted_at ?? 0) - 5_000));
 		if (!history.ok) {
@@ -157,7 +148,7 @@ export class Outbox {
 			return "retry";
 		}
 		const nonce = await nonceFor(`${row.group_id}:${row.part}:${row.generation}`);
-		const found = history.body.find((m) => m.nonce === nonce || m.content === row.content);
+		const found = history.body.find((m) => String(m.nonce) === nonce);
 		if (found) {
 			this.sql.exec("UPDATE bobik_outbox SET state = 'sent', message_id = ? WHERE seq = ?", found.id, row.seq);
 			return "settled";

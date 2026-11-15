@@ -32,7 +32,6 @@ function record(body: unknown): Record<string, unknown> {
 	return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
 }
 
-/** The only GitHub requests the bot may make on behalf of a conversation. */
 export function allowRequest(method: string, url: string, body: unknown, scope: Scope): Verdict {
 	if (!BRANCH.test(scope.branch)) return deny("branch is not a bot branch");
 	if (scope.branch === scope.base) return deny("branch is the base branch");

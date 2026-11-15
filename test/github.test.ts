@@ -7,7 +7,6 @@ const API = "https://github.test";
 const BRANCH = "bobik/600000000000000001";
 const scope = { owner: "team", name: "repo", base: "main", branch: BRANCH };
 
-/** A tiny in-memory GitHub: refs, commits and trees, enough to observe what the bot pushes. */
 function fakeGitHub(net: FakeNet) {
 	const refs = new Map<string, string>([["main", "c0"]]);
 	const commits = new Map<string, { tree: string; parents: string[] }>([["c0", { tree: "t0", parents: [] }]]);

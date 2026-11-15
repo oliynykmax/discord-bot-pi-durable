@@ -7,7 +7,6 @@ export type PullRef = { readonly number: number; readonly url: string };
 
 export type OpenEffect = { readonly callId: string; readonly parent: string; readonly intended: string };
 
-/** Durable repository state a conversation keeps for its own branch. */
 export interface RepoState {
 	pr(): PullRef | undefined;
 	setPr(pr: PullRef): void;
@@ -127,7 +126,6 @@ export class BranchRepo {
 		].join("\n");
 	}
 
-	/** Settles writes a crash interrupted, by comparing the branch with the commit each one meant to publish. */
 	async reconcile(): Promise<string[]> {
 		const open = this.state.openEffects();
 		if (open.length === 0) return [];

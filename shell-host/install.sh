@@ -16,7 +16,7 @@ die() { echo "install.sh: $*" >&2; exit 1; }
 bm=/home/bobik/.local/bin/bm
 [[ -x $bm ]] || die "no Basic Memory at $bm; as bobik: uv tool install basic-memory, then bm project add bobik /home/bobik/memory"
 command -v caddy >/dev/null || die "Caddy is not installed"
-site=$(awk 'NR == 1 { print $1 }' "$here/Caddyfile")
+site=$(awk '/^[^{}#[:space:]]/ { print $1; exit }' "$here/Caddyfile")
 
 secrets=/etc/bobik/shell.env
 [[ -f $secrets ]] || die "$secrets is missing; create it (root:root, 600) with SHELL_TOKEN=..."
@@ -54,17 +54,15 @@ install -m 755 "$pi_env" /opt/bobik/pi-env
 install -m 644 "$here/bridge.ts" "$here/protocol.ts" /opt/bobik/bridge/
 
 install -m 644 "$here/bobik-bridge.service" "$here/bobik-keepalive.service" "$here/bobik-memory.service" /etc/systemd/system/
-# Caddy reads SHELL_TOKEN only at start, so a changed drop-in needs a restart; a changed Caddyfile needs only a reload.
+# The Caddyfile turns the admin API off, so Caddy cannot reload and every change is a restart.
 install -d -m 755 /etc/systemd/system/caddy.service.d
-caddy_restart=no
-cmp -s "$here/caddy-bobik.conf" /etc/systemd/system/caddy.service.d/bobik.conf || caddy_restart=yes
 install -m 644 "$here/caddy-bobik.conf" /etc/systemd/system/caddy.service.d/bobik.conf
 caddy validate --adapter caddyfile --config "$here/Caddyfile" >/dev/null 2>&1 || die "Caddyfile does not validate"
 install -m 644 "$here/Caddyfile" /etc/caddy/Caddyfile
 systemctl daemon-reload
 systemctl enable --quiet bobik-bridge.service bobik-keepalive.service bobik-memory.service
 systemctl restart bobik-bridge.service bobik-keepalive.service bobik-memory.service
-if [[ $caddy_restart == yes ]]; then systemctl restart caddy; else systemctl reload caddy; fi
+systemctl restart caddy
 
 # The memory server takes about 40 s to start on the 1/8-OCPU micro shape.
 wait_for() {

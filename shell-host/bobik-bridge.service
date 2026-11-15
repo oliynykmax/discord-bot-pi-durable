@@ -1,0 +1,23 @@
+[Unit]
+Description=bobik shell bridge: pi-env daemons over WebSocket for the bobik Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bobik
+Group=bobik
+WorkingDirectory=/home/bobik
+# Holds only SHELL_TOKEN_SHA256; install.sh derives it from /etc/bobik/shell.env.
+EnvironmentFile=/etc/bobik/bridge.env
+Environment=HOST=127.0.0.1 PORT=8788 PI_ENV_COMMAND=/opt/bobik/pi-env SHELL_HOME=/home/bobik
+ExecStart=/opt/bobik/bun/bin/bun /opt/bobik/bridge/bridge.ts
+Restart=always
+RestartSec=2
+# Every shell process stays in this unit's cgroup, so these bound the whole friend group's shell.
+MemoryMax=600M
+TasksMax=256
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

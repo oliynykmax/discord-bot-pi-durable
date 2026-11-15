@@ -6,9 +6,10 @@
   "type": "module",
   "scripts": {
     "types": "wrangler types --include-env=false worker-configuration.d.ts",
-    "typecheck": "wrangler types --include-env=false worker-configuration.d.ts >/dev/null && tsc --noEmit",
+    "typecheck": "wrangler types --include-env=false worker-configuration.d.ts >/dev/null && tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
-    "check": "bun run typecheck && bun run test && wrangler deploy --dry-run --outdir dist"
+    "check": "bun run typecheck && bun run test && bun run test:node && wrangler deploy --dry-run --outdir dist",
+    "test:node": "vitest run -c vitest.node.config.ts"
   },
   "dependencies": {
     "@earendil-works/chord": "1.5.2",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.8.2",
+    "@types/bun": "1.4.4",
     "typescript": "5.9.3",
     "vitest": "5.1.0",
     "wrangler": "4.162.0"

@@ -1,0 +1,24 @@
+[Unit]
+Description=Idle-priority CPU load so Oracle's Always Free idle reclaim does not see this VM as idle
+
+[Service]
+Type=simple
+DynamicUser=yes
+ExecStart=/usr/bin/python3 -c "while True: pass"
+# SCHED_IDLE only runs when nothing else wants the CPU, so real work preempts it at once.
+CPUSchedulingPolicy=idle
+Nice=19
+# Oracle reclaims when the 95th percentile of CPU stays under 20% for 7 days. Tune here.
+CPUQuota=60%
+MemoryMax=32M
+PrivateNetwork=yes
+IPAddressDeny=any
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

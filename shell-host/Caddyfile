@@ -1,3 +1,17 @@
 138-2-191-62.sslip.io {
-	reverse_proxy 127.0.0.1:8788
+	# bobik's memory server. SHELL_TOKEN comes from /etc/bobik/shell.env through a systemd drop-in, and {env.*} is read
+	# at request time, so the token never appears in Caddy's config or its admin API.
+	@memory path /mcp /mcp/*
+	handle @memory {
+		@authorized header Authorization "Bearer {env.SHELL_TOKEN}"
+		handle @authorized {
+			reverse_proxy 127.0.0.1:8800 {
+				header_up Host 127.0.0.1:8800
+			}
+		}
+		respond 401
+	}
+	handle {
+		reverse_proxy 127.0.0.1:8788
+	}
 }

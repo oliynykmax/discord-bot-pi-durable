@@ -24,6 +24,7 @@ declare global {
 			GITHUB_API_BASE?: string;
 			SHELL_URL?: string;
 			SHELL_TOKEN?: string;
+			MEMORY_MCP_URL?: string;
 		}
 	}
 }
@@ -33,6 +34,11 @@ export type Env = Cloudflare.Env;
 /** The shell bridge, or `undefined` when either setting is missing: bobik then runs without shell tools. */
 export function shellConfig(env: Env): { readonly url: string; readonly token: string } | undefined {
 	return env.SHELL_URL && env.SHELL_TOKEN ? { url: env.SHELL_URL, token: env.SHELL_TOKEN } : undefined;
+}
+
+/** bobik's memory server, behind the same Caddy and token as the shell; `undefined` leaves bobik without memory tools. */
+export function memoryConfig(env: Env): { readonly url: string; readonly token: string } | undefined {
+	return env.MEMORY_MCP_URL && env.SHELL_TOKEN ? { url: env.MEMORY_MCP_URL, token: env.SHELL_TOKEN } : undefined;
 }
 
 export type Snowflake = string & { readonly __snowflake: unique symbol };

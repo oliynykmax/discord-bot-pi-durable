@@ -29,6 +29,7 @@ export default defineConfig({
 					VERDA_BASE_URL: "https://verda.test/v1",
 					SHELL_URL: "wss://shell.test/pi-env",
 					SHELL_TOKEN: "test-shell-token",
+					MEMORY_MCP_URL: "https://memory.test/mcp",
 				},
 				// The sandbox Worker as `bun run build:sandbox` bundles it, bound by `script_name` as in production.
 				workers: [

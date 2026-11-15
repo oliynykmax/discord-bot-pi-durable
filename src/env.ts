@@ -1,3 +1,4 @@
+import type { CodemodeSandboxDurableObject } from "@earendil-works/pi-codemode/cloudflare";
 import type { Conversation } from "./conversation.ts";
 import type { DiscordGateway } from "./gateway.ts";
 
@@ -6,6 +7,7 @@ declare global {
 		interface Env {
 			GATEWAY: DurableObjectNamespace<DiscordGateway>;
 			CONVERSATIONS: DurableObjectNamespace<Conversation>;
+			CODEMODE_SANDBOX: DurableObjectNamespace<CodemodeSandboxDurableObject>;
 			GH_APP_ID: string;
 			GH_INSTALLATION_ID: string;
 			GH_REPO: string;

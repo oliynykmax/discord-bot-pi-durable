@@ -7,16 +7,19 @@
   "scripts": {
     "types": "wrangler types --include-env=false worker-configuration.d.ts",
     "typecheck": "wrangler types --include-env=false worker-configuration.d.ts >/dev/null && tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "test": "vitest run",
+    "build:sandbox": "wrangler deploy --dry-run --outdir dist -c codemode-sandbox/wrangler.jsonc",
+    "test": "bun run build:sandbox >/dev/null && vitest run",
     "check": "bun run typecheck && bun run test && bun run test:node && wrangler deploy --dry-run --outdir dist",
     "test:node": "vitest run -c vitest.node.config.ts"
   },
   "dependencies": {
     "@earendil-works/chord": "1.5.2",
     "@earendil-works/pi-ai": "1.5.2",
+    "@earendil-works/pi-codemode": "1.5.2",
     "@earendil-works/pi-durable": "1.5.2",
     "@earendil-works/pi-env": "1.5.2",
     "@earendil-works/pi-schema": "1.5.2",
+    "@modelcontextprotocol/client": "2.4.0",
     "agents": "0.33.0"
   },
   "devDependencies": {

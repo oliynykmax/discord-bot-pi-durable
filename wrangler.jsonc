@@ -13,7 +13,8 @@
   "durable_objects": {
     "bindings": [
       { "name": "GATEWAY", "class_name": "DiscordGateway" },
-      { "name": "CONVERSATIONS", "class_name": "Conversation" }
+      { "name": "CONVERSATIONS", "class_name": "Conversation" },
+      { "name": "CODEMODE_SANDBOX", "class_name": "CodemodeSandbox", "script_name": "bobik-codemode-sandbox" }
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DiscordGateway", "Conversation"] }],

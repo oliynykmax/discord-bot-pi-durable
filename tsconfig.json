@@ -17,6 +17,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "test", "vitest.config.ts"],
+  "include": ["src", "test", "codemode-sandbox/src", "vitest.config.ts"],
   "exclude": ["test/node"]
 }

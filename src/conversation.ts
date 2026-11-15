@@ -1,5 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { RemoteCodemodeSandbox } from "@earendil-works/pi-codemode/portable";
 import { ConversationIdle, createRegistry, Harness, ROOT_CONVERSATION_ID, type UserInput } from "@earendil-works/pi-durable";
+import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { PiHarness, type PiHarnessContext, type PiOperationResult } from "agents/harness/pi";
 import { Lifecycle, LifecycleCapability, type LifecycleJobContext, type LifecycleJobOutcome } from "agents/lifecycle";
@@ -167,6 +169,13 @@ export class Conversation extends DurableObject<Env> {
 			tools: [...githubTools(this.branchRepo(), `Opened by bobik from Discord thread ${threadId}.`), attachmentTool((m, i) => this.attachment(m, i))],
 		});
 		if (shell) registry.install(CodingTools);
+		registry.install(
+			createCodemodeExtension({
+				// One sandbox object per thread keeps a thread's scripts together, in the separate sandbox Worker.
+				sandbox: new RemoteCodemodeSandbox({ remote: () => this.env.CODEMODE_SANDBOX.getByName(threadId) }),
+				models: false,
+			}),
+		);
 		return Harness.open(
 			storage,
 			{
@@ -198,6 +207,7 @@ export class Conversation extends DurableObject<Env> {
 			shellCwd
 				? `Your tools: discord_read_attachment reads files people attach. read, write, edit and bash work on your own small Linux machine (Ubuntu, 1 GB of RAM, shared by the whole friend group). This thread has its own folder, ${shellCwd}, which is your working directory, and its files stay between messages. Other threads have their own folders; leave them alone unless someone asks. Use the shell when it actually helps, like running code, crunching numbers or data, converting files or keeping notes. Keep commands light, give anything slow a timeout, and don't leave things running in the background: they are stopped when you go quiet. curl in the shell is your only way onto the web; you have no browser, web search or screenshots, and you can't send files back to Discord, so paste the part that matters. The GitHub tools work on one repository and only matter when a request is about that repository.`
 				: "Your tools: discord_read_attachment reads files people attach. The GitHub tools work on one repository and only matter when a request is about that repository. You have no web search, shell, test runner, builds or screenshots.",
+			"codemode runs a short JavaScript script that calls your other tools as `await tools.<name>(args)` and returns only what the script outputs. Use it when a job takes several tool calls, like reading a few files, looping or combining results, so it happens in one step. For a single call, call the tool directly.",
 			"Never pretend to have a tool or access you lack, and never claim you ran, tested, checked or looked something up when you didn't. Only report results a tool actually gave you. If something needs a human to verify, say so.",
 			`For repository work: the repository is ${repo.owner}/${repo.name}, base branch ${repo.base}, and this conversation's own branch is ${branch}. Read with github_list_files and github_read_file. Change code only with github_write_files, which commits to your branch, then open a pull request with github_open_pr. Inspect pull requests with github_get_pr. You cannot push to ${repo.base}, merge or delete branches. When you open or update a pull request, include its link in your answer.`,
 			"Your final message is posted to Discord as is.",

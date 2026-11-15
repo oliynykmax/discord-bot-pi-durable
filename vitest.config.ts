@@ -1,6 +1,15 @@
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+const SANDBOX_DIST = "codemode-sandbox/dist";
+
+function sandboxModules() {
+	const files = readdirSync(SANDBOX_DIST);
+	const wasm = files.filter((file) => file.endsWith(".wasm")).map((file) => ({ type: "CompiledWasm" as const, path: `${SANDBOX_DIST}/${file}` }));
+	return [{ type: "ESModule" as const, path: `${SANDBOX_DIST}/index.js` }, ...wasm];
+}
 
 export default defineConfig({
 	// Mirrors the `alias` in wrangler.jsonc, which the Workers pool does not read.
@@ -21,6 +30,15 @@ export default defineConfig({
 					SHELL_URL: "wss://shell.test/pi-env",
 					SHELL_TOKEN: "test-shell-token",
 				},
+				// The sandbox Worker as `bun run build:sandbox` bundles it, bound by `script_name` as in production.
+				workers: [
+					{
+						name: "bobik-codemode-sandbox",
+						modules: sandboxModules(),
+						compatibilityDate: "2026-11-01",
+						durableObjects: { CodemodeSandbox: { className: "CodemodeSandbox", useSQLite: true } },
+					},
+				],
 			},
 		}),
 	],

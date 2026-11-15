@@ -109,11 +109,11 @@ describe("conversation", () => {
 		const stub = env.CONVERSATIONS.getByName(thread);
 		await stub.accept(input(thread, say("one")));
 		await eventually(() => net.modelRequests.length, (n) => n === 1);
-		expect(await stub.accept(input(thread, { kind: "queue", text: "two" }))).toEqual({ duplicate: false, reaction: "📥" });
+		expect(await stub.accept(input(thread, { kind: "queue", text: "queued second" }))).toEqual({ duplicate: false, reaction: "📥" });
 		first.open();
 		const sent = await until(stub, () => net.sent(thread), (s) => s.length === 2);
 		expect(sent.map((c) => c.body.content)).toEqual(["first answer", "second answer"]);
-		expect(JSON.stringify(net.modelRequests[0].messages)).not.toContain("two");
+		expect(JSON.stringify(net.modelRequests[0].messages)).not.toContain("queued second");
 	});
 
 	test("idle status skips repo framing and old PR metadata does not decorate unrelated replies", async () => {

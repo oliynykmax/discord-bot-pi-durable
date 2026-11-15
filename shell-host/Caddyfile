@@ -1,3 +1,8 @@
+{
+	# No admin API: bobik's shell runs on this box and could otherwise rewrite routes around the token check.
+	admin off
+}
+
 138-2-191-62.sslip.io {
 	# bobik's memory server. SHELL_TOKEN comes from /etc/bobik/shell.env through a systemd drop-in, and {env.*} is read
 	# at request time, so the token never appears in Caddy's config or its admin API.

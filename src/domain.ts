@@ -39,8 +39,9 @@ export const MAX_TOOL_ROUNDS = 12;
 export const HELP = [
 	"Tag me in a text channel to start a conversation in a new thread. Reply in that thread to steer the running work; no mention needed.",
 	"`!queue <text>` runs a message after the current run. `!stop` stops the run and drops queued messages. `!status` shows the state.",
-	"I can list, read and commit files in the team repository on my own branch `bobik/<thread id>`, open a pull request, and read PRs. I never push to main or merge.",
-	"I can read text and image attachments on your messages. I cannot run a shell, run tests, take screenshots or send files back.",
+	"Ask me anything: chat, ideas, explanations, writing, translation, plans, everyday stuff, or code.",
+	"I can read text and image attachments. For repo work I can read and commit files in the team repository on my own branch `bobik/<thread id>`, open a pull request, and read PRs. I never push to main or merge.",
+	"I cannot browse the web, run a shell, run tests, take screenshots or send files back.",
 	"The model is fixed: Kimi K3.1 Pro on Verda.",
 ].join("\n");
 

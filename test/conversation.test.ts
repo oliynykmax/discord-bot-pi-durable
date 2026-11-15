@@ -116,6 +116,21 @@ describe("conversation", () => {
 		expect(JSON.stringify(net.modelRequests[0].messages)).not.toContain("two");
 	});
 
+	test("idle status skips repo framing and old PR metadata does not decorate unrelated replies", async () => {
+		const net = new FakeNet().install().reply({ text: "Pasta it is" });
+		const thread = newThread();
+		const stub = env.CONVERSATIONS.getByName(thread);
+		await stub.accept(input(thread, { kind: "status" }));
+		const status = await until(stub, () => net.sent(thread), (s) => s.length === 1);
+		expect(status[0]!.body.content).not.toContain("Branch");
+		await runInDurableObject(stub, (_o, state) => {
+			state.storage.sql.exec("INSERT INTO bobik_meta (key, value) VALUES ('pr', ?)", JSON.stringify({ number: 7, url: "https://github.test/pr/7" }));
+		});
+		await stub.accept(input(thread, say("what should we cook tonight?")));
+		const sent = await until(stub, () => net.sent(thread), (s) => s.length === 2);
+		expect(sent[1]!.body.content).toBe("Pasta it is");
+	});
+
 	test("commands answer without a model call", async () => {
 		const net = new FakeNet().install();
 		const thread = newThread();

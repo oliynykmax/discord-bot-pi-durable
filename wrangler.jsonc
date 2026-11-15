@@ -24,6 +24,7 @@
     "GH_REPO": "oliynykmax/junction-2026",
     "GH_BASE_BRANCH": "main",
     "VERDA_BASE_URL": "https://inference.verda.com/v1",
-    "SHELL_URL": "wss://138-2-191-62.sslip.io/pi-env"
+    "SHELL_URL": "wss://138-2-191-62.sslip.io/pi-env",
+    "MEMORY_MCP_URL": "https://138-2-191-62.sslip.io/mcp"
   }
 }

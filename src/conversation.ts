@@ -2,6 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { RemoteCodemodeSandbox } from "@earendil-works/pi-codemode/portable";
 import { ConversationIdle, createRegistry, Harness, ROOT_CONVERSATION_ID, type UserInput } from "@earendil-works/pi-durable";
 import { createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
+import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { PiHarness, type PiHarnessContext, type PiOperationResult } from "agents/harness/pi";
 import { Lifecycle, LifecycleCapability, type LifecycleJobContext, type LifecycleJobOutcome } from "agents/lifecycle";
@@ -20,9 +21,10 @@ import {
 	operationId,
 	type ThreadInput,
 } from "./domain.ts";
-import { discordApi, type Env, githubApi, repoFrom, shellConfig, snowflake, type Snowflake } from "./env.ts";
+import { discordApi, type Env, githubApi, memoryConfig, repoFrom, shellConfig, snowflake, type Snowflake } from "./env.ts";
 import { GitHubClient, InstallationTokens } from "./github/client.ts";
 import { BranchRepo, githubTools, type OpenEffect, type PullRef, type RepoState } from "./github/tools.ts";
+import { MEMORY_NAMESPACE, memoryExtension, MemoryServer } from "./memory.ts";
 import { OUTBOX_SCHEMA, Outbox } from "./outbox.ts";
 import { ShellLink, THREADS_DIR } from "./shell/link.ts";
 import { workerDial } from "./shell/worker-dial.ts";
@@ -127,6 +129,7 @@ export class Conversation extends DurableObject<Env> {
 	#rest: DiscordRest | undefined;
 	#tokens: InstallationTokens | undefined;
 	#shell: ShellLink | undefined;
+	#memory: MemoryServer | undefined;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -163,9 +166,10 @@ export class Conversation extends DurableObject<Env> {
 		const repo = repoFrom(this.env);
 		const branch = botBranch(threadId);
 		const shell = this.shell();
+		const memory = this.memory();
 		registry.install({
 			name: "bobik",
-			sections: [{ key: "bobik", render: () => this.systemPrompt(repo, branch, shell?.cwd) }],
+			sections: [{ key: "bobik", render: () => this.systemPrompt(repo, branch, shell?.cwd, memory !== undefined) }],
 			tools: [...githubTools(this.branchRepo(), `Opened by bobik from Discord thread ${threadId}.`), attachmentTool((m, i) => this.attachment(m, i))],
 		});
 		if (shell) registry.install(CodingTools);
@@ -173,9 +177,14 @@ export class Conversation extends DurableObject<Env> {
 			createCodemodeExtension({
 				// One sandbox object per thread keeps a thread's scripts together, in the separate sandbox Worker.
 				sandbox: new RemoteCodemodeSandbox({ remote: () => this.env.CODEMODE_SANDBOX.getByName(threadId) }),
+				namespaces: memory ? [MEMORY_NAMESPACE] : [],
 				models: false,
 			}),
 		);
+		if (memory) {
+			registry.install(memoryExtension(memory));
+			registry.install(createToolSearchExtension());
+		}
 		return Harness.open(
 			storage,
 			{
@@ -199,7 +208,15 @@ export class Conversation extends DurableObject<Env> {
 		return this.#shell;
 	}
 
-	private systemPrompt(repo: { owner: string; name: string; base: string }, branch: string, shellCwd: string | undefined): string {
+	/** The memory server, kept for the life of this object; `undefined` without memory settings. */
+	private memory(): MemoryServer | undefined {
+		const config = memoryConfig(this.env);
+		if (!config) return undefined;
+		this.#memory ??= new MemoryServer(config.url, config.token);
+		return this.#memory;
+	}
+
+	private systemPrompt(repo: { owner: string; name: string; base: string }, branch: string, shellCwd: string | undefined, memory: boolean): string {
 		return [
 			"You are bobik, a laid-back helper who hangs out in Discord with a small group of friends. Each message starts with its author's name.",
 			"You help with whatever comes up: chatting, brainstorming, explaining things, writing and editing, translating, planning, everyday questions, and code when someone actually asks for it. Don't steer a normal conversation toward code, repositories or pull requests.",
@@ -208,10 +225,15 @@ export class Conversation extends DurableObject<Env> {
 				? `Your tools: discord_read_attachment reads files people attach. read, write, edit and bash work on your own small Linux machine (Ubuntu, 1 GB of RAM, shared by the whole friend group). This thread has its own folder, ${shellCwd}, which is your working directory, and its files stay between messages. Other threads have their own folders; leave them alone unless someone asks. Use the shell when it actually helps, like running code, crunching numbers or data, converting files or keeping notes. Keep commands light, give anything slow a timeout, and don't leave things running in the background: they are stopped when you go quiet. curl in the shell is your only way onto the web; you have no browser, web search or screenshots, and you can't send files back to Discord, so paste the part that matters. The GitHub tools work on one repository and only matter when a request is about that repository.`
 				: "Your tools: discord_read_attachment reads files people attach. The GitHub tools work on one repository and only matter when a request is about that repository. You have no web search, shell, test runner, builds or screenshots.",
 			"codemode runs a short JavaScript script that calls your other tools as `await tools.<name>(args)` and returns only what the script outputs. Use it when a job takes several tool calls, like reading a few files, looping or combining results, so it happens in one step. For a single call, call the tool directly.",
+			memory
+				? "You have a shared memory: notes that last across threads, and everyone in this group sees all of them. Its tools are named mcp__memory__* (bm_search, bm_read, bm_write, bm_edit, bm_delete, bm_move, bm_list and more). Load them with tool_search, or call them from codemode as `await tools.mcp__memory__bm_search({ query })`. Before you say you don't know something about the people here, their plans or past decisions, search memory. Save durable, useful things, like someone's preferences, plans and decisions, when someone asks you to remember them or when it's clearly useful later, and mention briefly that you saved it. Never store secrets such as passwords, tokens, keys or anything someone asked to keep private, and keep in mind that every note is visible to the whole group. If memory is unreachable, say so instead of guessing."
+				: "",
 			"Never pretend to have a tool or access you lack, and never claim you ran, tested, checked or looked something up when you didn't. Only report results a tool actually gave you. If something needs a human to verify, say so.",
 			`For repository work: the repository is ${repo.owner}/${repo.name}, base branch ${repo.base}, and this conversation's own branch is ${branch}. Read with github_list_files and github_read_file. Change code only with github_write_files, which commits to your branch, then open a pull request with github_open_pr. Inspect pull requests with github_get_pr. You cannot push to ${repo.base}, merge or delete branches. When you open or update a pull request, include its link in your answer.`,
 			"Your final message is posted to Discord as is.",
-		].join("\n");
+		]
+			.filter(Boolean)
+			.join("\n");
 	}
 
 	private branchRepo(): BranchRepo {

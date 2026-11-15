@@ -180,6 +180,9 @@ describe("gateway connection", () => {
 		await send({ op: 10, d: { heartbeat_interval: 45_000 } });
 		await eventually(() => received.length, (n) => n >= 1);
 		expect(received[0]).toEqual({ op: 6, d: { token: "test-discord-token", session_id: "sess", seq: 41 } });
+		expect((await stub.status()).lastAckAgeS).toBeNull();
+		await send({ op: 11 });
+		await eventually(() => stub.status(), (status) => status.lastAckAgeS === 0);
 		await close(1011);
 		const upgrade = await eventually(() => net.calls.filter((c) => c.url.includes("resume.discord.test")), (c) => c.length >= 1, 15_000);
 		expect(upgrade[0]!.url).toContain("v=10");

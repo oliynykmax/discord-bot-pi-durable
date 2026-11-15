@@ -126,7 +126,6 @@ export class DiscordGateway extends DurableObject<Env> {
 		return this.status();
 	}
 
-	/** Cron entry: reconnects a persisted-enabled gateway and drains a due journal. Writes nothing when healthy. */
 	async ensure(): Promise<void> {
 		if (this.get("enabled") === "1" && !this.get("fatal") && !this.#ws) await this.link();
 		if (this.sql("SELECT 1 FROM gw_journal WHERE state = 'pending' AND next_at <= ? LIMIT 1", Date.now()).length > 0) await this.processJournal();
@@ -198,7 +197,6 @@ export class DiscordGateway extends DurableObject<Env> {
 		this.attach(socket, canResume);
 	}
 
-	/** Takes over an accepted socket. Public so tests can drive the protocol over an in-memory WebSocketPair. */
 	attach(socket: WebSocket, canResume: boolean) {
 		this.#ws = socket;
 		const seq = this.get("seq");
@@ -227,6 +225,7 @@ export class DiscordGateway extends DurableObject<Env> {
 
 	private event(event: GatewayEvent) {
 		if (!this.#conn) return;
+		if (event.type === "frame" && event.frame.op === 11) this.#lastAck = Date.now();
 		const [next, effects] = step(this.#conn, event);
 		this.#conn = next;
 		for (const effect of effects) this.perform(effect);
@@ -316,6 +315,7 @@ export class DiscordGateway extends DurableObject<Env> {
 			}
 			case "RESUMED":
 				this.#reconnects = 0;
+				this.#lastAck = Date.now();
 				break;
 			case "GUILD_CREATE":
 				this.learnGuild(data);
@@ -337,7 +337,6 @@ export class DiscordGateway extends DurableObject<Env> {
 		this.checkpoint(seq);
 	}
 
-	/** Journals a relevant message and advances the resume cursor in one transaction. Returns whether it journaled. */
 	ingest(data: unknown, seq: number | null): boolean {
 		const message = inbound(data, this.view());
 		if (!message) return false;
@@ -356,8 +355,8 @@ export class DiscordGateway extends DurableObject<Env> {
 			if (seq !== null) this.set("seq", seq);
 		});
 		this.#lastCheckpoint = Date.now();
-		void this.armAlarm(Date.now() + 1_000);
-		void this.processJournal();
+		this.ctx.waitUntil(this.armAlarm(Date.now() + 1_000));
+		this.ctx.waitUntil(this.processJournal());
 		return true;
 	}
 
@@ -395,7 +394,6 @@ export class DiscordGateway extends DurableObject<Env> {
 		if (current === null || current > at) await this.ctx.storage.setAlarm(at);
 	}
 
-	/** Drains due journal rows, one at a time and in order. Serialized per object. */
 	processJournal(): Promise<void> {
 		const run = this.#processing.then(() => this.drainJournal());
 		this.#processing = run.catch((error) => {

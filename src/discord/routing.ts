@@ -39,11 +39,6 @@ export function isAllowed(authorId: string, roles: readonly string[], access: Ac
 	return access.users.has(authorId as Snowflake) || roles.some((role) => access.roles.has(role as Snowflake));
 }
 
-/**
- * Decides at ingress, synchronously, whether a MESSAGE_CREATE is worth a journal row: an allowed author in a bound
- * thread, or anyone who mentions the bot (a stranger's mention earns a denial reply). Everything else is dropped
- * before any storage write.
- */
 export function inbound(raw: unknown, view: View): Inbound | undefined {
 	const d = raw as RawMessage;
 	if (!view.botId || d.webhook_id != null) return undefined;
@@ -106,7 +101,6 @@ export const unsupported = (command: string) => `\`${command}\` is not supported
 
 export const DENIED = "You are not on this bot's allowlist.";
 
-/** Where one journaled message goes, once its channel is known. */
 export function route(message: Inbound, channel: ChannelKind | undefined, bound: boolean, access: Access): Route {
 	if (!message.allowed) return message.mentioned ? { kind: "reply", text: DENIED } : { kind: "ignore" };
 	const action = parseAction(message.text);

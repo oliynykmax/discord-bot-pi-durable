@@ -1,7 +1,7 @@
 import { env, evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Conversation } from "../src/conversation.ts";
-import { type Action, operationId, type ThreadInput } from "../src/domain.ts";
+import { type Action, nonceFor, operationId, type ThreadInput } from "../src/domain.ts";
 import type { Snowflake } from "../src/env.ts";
 import { NONCE_WINDOW_MS } from "../src/outbox.ts";
 import { eventually, FakeNet } from "./net.ts";
@@ -29,7 +29,6 @@ function gate() {
 	return { open, opened };
 }
 
-/** Drives the object's alarms until `probe` passes, the way the runtime would after each push. */
 async function until<T>(stub: DurableObjectStub<Conversation>, probe: () => T | Promise<T>, ok: (value: T) => boolean) {
 	return eventually(
 		async () => {
@@ -247,13 +246,13 @@ describe("conversation", () => {
 		const drain = () => runInDurableObject<Conversation, number | undefined>(stub, (object) => object.outbox.drain());
 
 		await seed("already posted");
-		history = [{ id: "910000000000000001", channel_id: thread, content: "already posted" }];
+		history = [{ id: "910000000000000001", channel_id: thread, content: "already posted", nonce: await nonceFor("answer:test:0:0") }];
 		await drain();
 		expect((await outbox(stub))[0]).toMatchObject({ state: "sent" });
 		expect(net.sent(thread)).toHaveLength(0);
 
 		await seed("never arrived");
-		history = [];
+		history = [{ id: "910000000000000002", channel_id: thread, content: "never arrived", nonce: "someone-elses-message" }];
 		await drain();
 		expect((await outbox(stub))[0]).toMatchObject({ state: "sent", generation: 1 });
 		expect(net.sent(thread)).toHaveLength(1);

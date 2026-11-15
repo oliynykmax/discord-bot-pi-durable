@@ -31,7 +31,6 @@ function completion(turn: ModelTurn, n: number) {
 	return sse(chunks);
 }
 
-/** A scripted stand-in for Verda, Discord and GitHub, installed over the isolate's global fetch. */
 export class FakeNet {
 	readonly calls: Call[] = [];
 	readonly modelRequests: any[] = [];

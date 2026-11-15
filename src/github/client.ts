@@ -37,7 +37,6 @@ export async function appJwt(appId: string, pkcs8Pem: string, nowMs = Date.now()
 
 const HEADERS = { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "bobik-pi-durable" };
 
-/** Installation tokens are minted per repository and kept only in memory. */
 export class InstallationTokens {
 	#token: { value: string; expiresAt: number } | undefined;
 
@@ -65,7 +64,6 @@ export class InstallationTokens {
 	}
 }
 
-/** Every GitHub request passes the scope policy before it leaves the Worker. */
 export class GitHubClient {
 	constructor(
 		private readonly api: string,

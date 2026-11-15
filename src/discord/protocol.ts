@@ -48,7 +48,6 @@ export const connection = (canResume: boolean, seq: number | null): Connection =
 
 const RESUMABLE_RECONNECT_CODE = 4000;
 
-/** The gateway protocol as a pure step: the Durable Object only performs the effects. */
 export function step(state: Connection, event: GatewayEvent): [Connection, Effect[]] {
 	switch (event.type) {
 		case "heartbeat_due": {

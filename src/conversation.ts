@@ -78,10 +78,6 @@ function renderUnanswered(reason: string | undefined): string {
 	}
 }
 
-/**
- * The host-side jobs of a conversation: admission recovery, settlement backstops, stop recovery and delivery. Pi's
- * own recovery is PiHarness's job; these cover the application rows around it.
- */
 class ConversationJobs extends LifecycleCapability {
 	constructor(private readonly host: Conversation) {
 		super("bobik.conversation");
@@ -236,7 +232,6 @@ export class Conversation extends DurableObject<Env> {
 		return lines.join("\n");
 	}
 
-	/** Durably admits one Discord message. Resolves once the input and its recovery job are stored, not when the model answers. */
 	async accept(input: ThreadInput): Promise<Admission> {
 		await this.lifecycle.start();
 		if (input.threadId !== this.threadId) throw new Error("input belongs to another thread");
@@ -323,7 +318,6 @@ export class Conversation extends DurableObject<Env> {
 		return { duplicate: false, reaction };
 	}
 
-	/** Pi's own record of a submission, by the operation id it was admitted with. */
 	private async piSubmission(opId: string) {
 		const storage = await this.harness.storage();
 		return storage.submissionByRequest(ROOT_CONVERSATION_ID, opId, BACKGROUND_CONTEXT);
@@ -349,7 +343,6 @@ export class Conversation extends DurableObject<Env> {
 		})().catch((error) => console.error("conversation recovery failed", error instanceof Error ? error.message : String(error)));
 	}
 
-	/** Returns true while received inputs remain. */
 	async admitReceived(): Promise<boolean> {
 		for (const row of this.sql<InputRow>("SELECT message_id, op_id, kind, input, role, stage, reaction, note FROM bobik_inputs WHERE stage = 'received' ORDER BY created_at")) {
 			if (row.kind === "stop") await this.applyStop(row.message_id);
@@ -358,7 +351,6 @@ export class Conversation extends DurableObject<Env> {
 		return this.sql("SELECT 1 FROM bobik_inputs WHERE stage = 'received' LIMIT 1").length > 0;
 	}
 
-	/** The durable backstop for a watcher lost to eviction. Returns true once the operation is settled here. */
 	async checkSettled(opId: string): Promise<boolean> {
 		const row = this.sql<{ stage: Stage }>("SELECT stage FROM bobik_inputs WHERE op_id = ?", opId)[0];
 		if (!row || row.stage === "settled") return true;

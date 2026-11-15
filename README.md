@@ -55,18 +55,18 @@ A cron trigger runs every minute. It reconnects the gateway only when it is pers
 
 ### Deploy
 
-Account `b9065ca4c59a3d2ebb9430692a07bf2c`, Worker `bobik-pi-durable`, on `workers.dev` with no custom routes.
+Account `b9065ca4c59a3d2ebb9430692a07bf2c`, Worker `bobik-pi-durable`, on `workers.dev` with no custom routes. Deployed endpoint: https://bobik-pi-durable.olejnikmax.workers.dev/healthz.
 
 ```sh
 bun install
 bun run check                 # typecheck, tests, wrangler deploy --dry-run
 bunx wrangler deploy          # creates the Worker and both SQLite Durable Object classes
 scripts/provision.sh          # uploads secrets, see below
-curl -s https://bobik-pi-durable.<subdomain>.workers.dev/healthz
+curl -s https://bobik-pi-durable.olejnikmax.workers.dev/healthz
 podman ps --filter name=hackbot   # the old bot must stay stopped: two sessions on one token both receive every event
 ADMIN=$(cat ~/.local/state/bobik-pi-durable/admin-secret)
-curl -s -X POST -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.<subdomain>.workers.dev/admin/gateway/start
-curl -s -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.<subdomain>.workers.dev/admin/status
+curl -s -X POST -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.olejnikmax.workers.dev/admin/gateway/start
+curl -s -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.olejnikmax.workers.dev/admin/status
 ```
 
 `scripts/provision.sh` runs `fnox exec` in `~/hackathon-bot` and reads only `DISCORD_TOKEN` and `GH_APP_PRIVATE_KEY` from it. It converts the PKCS#1 App key to PKCS#8 with `openssl pkcs8 -topk8 -nocrypt` in a pipe, reads only `VERDA_API_KEY` from `~/.local/state/j26-verda/app-secrets.json`, and imports `ALLOWED_USER_IDS`, `ALLOWED_ROLE_IDS` and `CHANNEL_IDS` from `~/hackathon-bot/bot.env`. It creates an admin secret in `~/.local/state/bobik-pi-durable/admin-secret` (mode 600) unless one exists. Everything goes to `wrangler secret bulk` on stdin, so no value reaches argv, logs or this repository. Only these names are written: `DISCORD_TOKEN`, `GH_APP_PRIVATE_KEY_PKCS8`, `VERDA_API_KEY`, `ADMIN_SECRET`, `ALLOWED_USER_IDS`, and `ALLOWED_ROLE_IDS` and `CHANNEL_IDS` when set.

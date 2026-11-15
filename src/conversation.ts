@@ -177,11 +177,12 @@ export class Conversation extends DurableObject<Env> {
 
 	private systemPrompt(repo: { owner: string; name: string; base: string }, branch: string): string {
 		return [
-			"You are bobik, the coding assistant of a hackathon team. Teammates talk to you in a Discord thread; each message starts with its author's name.",
-			`You work on the GitHub repository ${repo.owner}/${repo.name}. Its base branch is ${repo.base}. This conversation's own branch is ${branch}.`,
-			"Read code with github_list_files and github_read_file. Change code only with github_write_files, which commits to your branch, then open a pull request with github_open_pr. Inspect pull requests with github_get_pr. Read files users attach with discord_read_attachment.",
-			`You cannot push to ${repo.base}, merge, delete branches, run a shell, run tests or builds, or take screenshots. Never claim you did. Say what a human should verify.`,
-			"Your final message is posted to Discord: keep it short, say what changed, link the pull request, and list anything the team must decide.",
+			"You are bobik, a laid-back helper who hangs out in Discord with a small group of friends. Each message starts with its author's name.",
+			"You help with whatever comes up: chatting, brainstorming, explaining things, writing and editing, translating, planning, everyday questions, and code when someone actually asks for it. Don't steer a normal conversation toward code, repositories or pull requests.",
+			"Talk like a friendly, relaxed person: warm, natural, concise by default. Reply in the language the person writes in and match their mood. Light humor is fine when it fits; skip forced slang and corporate report formatting. Take every request seriously and actually do it.",
+			"Your tools: discord_read_attachment reads files people attach. The GitHub tools work on one repository and only matter when a request is about that repository. You have no web search, shell, test runner, builds or screenshots. Never pretend to have a tool or access you lack, and never claim you ran, tested, checked or looked something up when you didn't. If something needs a human to verify, say so.",
+			`For repository work: the repository is ${repo.owner}/${repo.name}, base branch ${repo.base}, and this conversation's own branch is ${branch}. Read with github_list_files and github_read_file. Change code only with github_write_files, which commits to your branch, then open a pull request with github_open_pr. Inspect pull requests with github_get_pr. You cannot push to ${repo.base}, merge or delete branches. When you open or update a pull request, include its link in your answer.`,
+			"Your final message is posted to Discord as is.",
 		].join("\n");
 	}
 
@@ -371,7 +372,7 @@ export class Conversation extends DurableObject<Env> {
 		if (result.status === "done") {
 			const record = await this.piSubmission(opId);
 			group = record?.status === "done" ? `answer:${record.answer}` : `op:${opId}`;
-			text = this.withPullLink(result.text ?? "");
+			text = result.text ?? "";
 		} else if (row.role !== "steer" && !QUIET_REASONS.has(result.reason ?? "")) {
 			group = `op:${opId}`;
 			text = renderUnanswered(result.reason);
@@ -383,11 +384,6 @@ export class Conversation extends DurableObject<Env> {
 		});
 		await this.host.jobs.cancel(`settle:${opId}`);
 		await this.deliverSoon();
-	}
-
-	private withPullLink(text: string): string {
-		const pr = this.repoState().pr();
-		return pr && !text.includes(pr.url) ? `${text}\n\nPR: ${pr.url}` : text;
 	}
 
 	private async stop(input: ThreadInput): Promise<Admission> {
@@ -426,7 +422,7 @@ export class Conversation extends DurableObject<Env> {
 		const problems = this.outbox.problems();
 		return [
 			`${running ? "Running" : "Idle"}${queued ? `, ${queued} queued` : ""}. Model ${KIMI_ID} on Verda.`,
-			`Branch \`${botBranch(this.threadId)}\`${head ? ` at ${head.slice(0, 12)}` : " (no commits yet)"}.${pr ? ` PR: ${pr.url}` : ""}`,
+			head || pr ? `Branch \`${botBranch(this.threadId)}\`${head ? ` at ${head.slice(0, 12)}` : ""}.${pr ? ` PR: ${pr.url}` : ""}` : "",
 			failure ? `Last run ended without an answer: ${failure}.` : "",
 			problems.blocked || problems.uncertain
 				? `Delivery: ${problems.blocked} blocked, ${problems.uncertain} uncertain message part(s) need an operator.`

@@ -1,6 +1,6 @@
 # bobik on Pi Durable
 
-bobik is the team's Discord coding assistant. A teammate tags `@bobik` in a channel, bobik opens a thread on that message and answers there. It reads and edits the team repository through GitHub tools, on its own branch, and opens pull requests. It never pushes to the base branch and never merges.
+bobik is a relaxed, general-purpose Discord buddy for a small group of friends. Someone tags `@bobik` in a channel, bobik opens a thread on that message and answers there. It chats, brainstorms, explains, writes, translates, plans and helps with everyday things, and does code when asked. It can read attached files. For repository work it reads and edits the team repository through GitHub tools, on its own branch, and opens pull requests. It never pushes to the base branch and never merges.
 
 It runs entirely on Cloudflare: one Worker, a singleton Discord gateway Durable Object, and one conversation Durable Object per Discord thread. Each conversation hosts a real [Pi Durable](https://developers.cloudflare.com/agents/harnesses/pi/) harness. The model is Kimi K3.1 Pro on Verda.
 
@@ -9,12 +9,12 @@ It runs entirely on Cloudflare: one Worker, a singleton Discord gateway Durable 
 - Tag `@bobik <request>` in a text channel. bobik reacts 👀, starts a thread on your message and posts its answer there.
 - Tag `@bobik` inside an existing thread to make it a bobik thread.
 - Reply in a bobik thread, without a mention, to steer the running work. If nothing is running, the reply starts a new run.
-- `!queue <text>` runs a message after the current run. `!stop` stops the run and drops queued messages. `!status` shows state, branch, PR and delivery problems. `!help` lists this.
+- `!queue <text>` runs a message after the current run. `!stop` stops the run and drops queued messages. `!status` shows state, delivery problems, and the branch and PR once there is repo activity. `!help` lists this.
 - Attach text or image files and bobik can read them.
 
 Only allowlisted users (and optional allowed roles) can use it. Mentions from anyone else get a one-line refusal. Bots and webhooks are ignored. With no allowlist, the gateway refuses to start.
 
-What it cannot do: run a shell, run tests or builds, take screenshots, send files back, or switch models. `!model`, `!models` and `model=` get a plain "not supported" reply. The old bot's `say`, `shot` and `pr-image` are gone.
+What it cannot do: browse the web, run a shell, run tests or builds, take screenshots, send files back, or switch models. `!model`, `!models` and `model=` get a plain "not supported" reply. The old bot's `say`, `shot` and `pr-image` are gone.
 
 ## Design
 

@@ -8,6 +8,7 @@
         "@earendil-works/chord": "1.5.2",
         "@earendil-works/pi-ai": "1.5.2",
         "@earendil-works/pi-durable": "1.5.2",
+        "@earendil-works/pi-env": "1.5.2",
         "@earendil-works/pi-schema": "1.5.2",
         "agents": "0.33.0",
       },
@@ -137,6 +138,8 @@
     "@earendil-works/pi-codemode": ["@earendil-works/pi-codemode@1.5.2", "", { "dependencies": { "quickjs-wasi": "3.6.2" } }, "sha512-HoZQ40a9RgdZ1VgmrX6x8887cNXedaRJT1l+Ie5YRIMK4gY7v0EpsiNqf6dmixrKylZlTgUSyR+vE8xhjfkr+w=="],
 
     "@earendil-works/pi-durable": ["@earendil-works/pi-durable@1.5.2", "", { "dependencies": { "@earendil-works/chord": "1.5.2", "@earendil-works/pi-ai": "1.5.2", "@earendil-works/pi-codemode": "1.5.2", "@earendil-works/pi-schema": "1.5.2", "@earendil-works/pi-telemetry": "1.5.2", "@silvia-odwyer/photon": "0.3.3", "diff": "8.0.4" } }, "sha512-zDB3anbI/yD0IG+VVY+g5tU+c5XOVqQAFwLkXRMiqZb4p/afWro0voZtLNoRAWcDA2r73kvmH6kKin9Ka8l55g=="],
+
+    "@earendil-works/pi-env": ["@earendil-works/pi-env@1.5.2", "", { "dependencies": { "@earendil-works/chord": "1.5.2", "@earendil-works/pi-durable": "1.5.2" } }, "sha512-yw9dPqPHHP567m7+TDAmuzWC9AU1I3aV3FFdNQlo+UXASYGEIW4QgbYXNTka6Y/Z4+KcifSdgDSiMiTM3ZXBfg=="],
 
     "@earendil-works/pi-schema": ["@earendil-works/pi-schema@1.5.2", "", {}, "sha512-hJoyCXWUhsSrXY5wJo2Q4kHXUsR51pNhkJHAMkWRwVMLDRtMDPkKNaa+JlVRVqTw1hjdSxcVVaFLSDbKlaTXEQ=="],
 

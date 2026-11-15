@@ -5,6 +5,7 @@
   "account_id": "b9065ca4c59a3d2ebb9430692a07bf2c",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
+  "alias": { "node:child_process": "./src/shell/child-process.ts" },
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": true },
@@ -21,6 +22,7 @@
     "GH_INSTALLATION_ID": "181608443",
     "GH_REPO": "oliynykmax/junction-2026",
     "GH_BASE_BRANCH": "main",
-    "VERDA_BASE_URL": "https://inference.verda.com/v1"
+    "VERDA_BASE_URL": "https://inference.verda.com/v1",
+    "SHELL_URL": "wss://138-2-191-62.sslip.io/pi-env"
   }
 }

@@ -1,5 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { ConversationIdle, createRegistry, Harness, ROOT_CONVERSATION_ID, type UserInput } from "@earendil-works/pi-durable";
+import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { PiHarness, type PiHarnessContext, type PiOperationResult } from "agents/harness/pi";
 import { Lifecycle, LifecycleCapability, type LifecycleJobContext, type LifecycleJobOutcome } from "agents/lifecycle";
 import { DurableObject } from "cloudflare:workers";
@@ -17,10 +18,12 @@ import {
 	operationId,
 	type ThreadInput,
 } from "./domain.ts";
-import { discordApi, type Env, githubApi, repoFrom, snowflake, type Snowflake } from "./env.ts";
+import { discordApi, type Env, githubApi, repoFrom, shellConfig, snowflake, type Snowflake } from "./env.ts";
 import { GitHubClient, InstallationTokens } from "./github/client.ts";
 import { BranchRepo, githubTools, type OpenEffect, type PullRef, type RepoState } from "./github/tools.ts";
 import { OUTBOX_SCHEMA, Outbox } from "./outbox.ts";
+import { ShellLink, THREADS_DIR } from "./shell/link.ts";
+import { workerDial } from "./shell/worker-dial.ts";
 import { KIMI_ID, KIMI_REF, verdaModels } from "./verda.ts";
 
 type Stage = "received" | "submitted" | "settled";
@@ -121,6 +124,7 @@ export class Conversation extends DurableObject<Env> {
 	readonly #watching = new Map<string, Promise<void>>();
 	#rest: DiscordRest | undefined;
 	#tokens: InstallationTokens | undefined;
+	#shell: ShellLink | undefined;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -156,16 +160,19 @@ export class Conversation extends DurableObject<Env> {
 		const threadId = this.threadId;
 		const repo = repoFrom(this.env);
 		const branch = botBranch(threadId);
+		const shell = this.shell();
 		registry.install({
 			name: "bobik",
-			sections: [{ key: "bobik", render: () => this.systemPrompt(repo, branch) }],
+			sections: [{ key: "bobik", render: () => this.systemPrompt(repo, branch, shell?.cwd) }],
 			tools: [...githubTools(this.branchRepo(), `Opened by bobik from Discord thread ${threadId}.`), attachmentTool((m, i) => this.attachment(m, i))],
 		});
+		if (shell) registry.install(CodingTools);
 		return Harness.open(
 			storage,
 			{
 				models: verdaModels(this.env),
 				registry,
+				...(shell ? { env: () => shell.env() } : {}),
 				onWake,
 				identity: { attribution: null },
 				settings: { afterFailedRun: "withdraw", followUpMode: "one-at-a-time" },
@@ -175,12 +182,23 @@ export class Conversation extends DurableObject<Env> {
 		);
 	}
 
-	private systemPrompt(repo: { owner: string; name: string; base: string }, branch: string): string {
+	/** The thread's link to the shell machine, kept for the life of this object; `undefined` without shell settings. */
+	private shell(): ShellLink | undefined {
+		const config = shellConfig(this.env);
+		if (!config) return undefined;
+		this.#shell ??= new ShellLink(workerDial(config.url, config.token), `${THREADS_DIR}/${this.threadId}`);
+		return this.#shell;
+	}
+
+	private systemPrompt(repo: { owner: string; name: string; base: string }, branch: string, shellCwd: string | undefined): string {
 		return [
 			"You are bobik, a laid-back helper who hangs out in Discord with a small group of friends. Each message starts with its author's name.",
 			"You help with whatever comes up: chatting, brainstorming, explaining things, writing and editing, translating, planning, everyday questions, and code when someone actually asks for it. Don't steer a normal conversation toward code, repositories or pull requests.",
 			"Talk like a friendly, relaxed person: warm, natural, concise by default. Reply in the language the person writes in and match their mood. Light humor is fine when it fits; skip forced slang and corporate report formatting. Take every request seriously and actually do it.",
-			"Your tools: discord_read_attachment reads files people attach. The GitHub tools work on one repository and only matter when a request is about that repository. You have no web search, shell, test runner, builds or screenshots. Never pretend to have a tool or access you lack, and never claim you ran, tested, checked or looked something up when you didn't. If something needs a human to verify, say so.",
+			shellCwd
+				? `Your tools: discord_read_attachment reads files people attach. read, write, edit and bash work on your own small Linux machine (Ubuntu, 1 GB of RAM, shared by the whole friend group). This thread has its own folder, ${shellCwd}, which is your working directory, and its files stay between messages. Other threads have their own folders; leave them alone unless someone asks. Use the shell when it actually helps, like running code, crunching numbers or data, converting files or keeping notes. Keep commands light, give anything slow a timeout, and don't leave things running in the background: they are stopped when you go quiet. curl in the shell is your only way onto the web; you have no browser, web search or screenshots, and you can't send files back to Discord, so paste the part that matters. The GitHub tools work on one repository and only matter when a request is about that repository.`
+				: "Your tools: discord_read_attachment reads files people attach. The GitHub tools work on one repository and only matter when a request is about that repository. You have no web search, shell, test runner, builds or screenshots.",
+			"Never pretend to have a tool or access you lack, and never claim you ran, tested, checked or looked something up when you didn't. Only report results a tool actually gave you. If something needs a human to verify, say so.",
 			`For repository work: the repository is ${repo.owner}/${repo.name}, base branch ${repo.base}, and this conversation's own branch is ${branch}. Read with github_list_files and github_read_file. Change code only with github_write_files, which commits to your branch, then open a pull request with github_open_pr. Inspect pull requests with github_get_pr. You cannot push to ${repo.base}, merge or delete branches. When you open or update a pull request, include its link in your answer.`,
 			"Your final message is posted to Discord as is.",
 		].join("\n");

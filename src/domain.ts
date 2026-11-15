@@ -41,7 +41,8 @@ export const HELP = [
 	"`!queue <text>` runs a message after the current run. `!stop` stops the run and drops queued messages. `!status` shows the state.",
 	"Ask me anything: chat, ideas, explanations, writing, translation, plans, everyday stuff, or code.",
 	"I can read text and image attachments. For repo work I can read and commit files in the team repository on my own branch `bobik/<thread id>`, open a pull request, and read PRs. I never push to main or merge.",
-	"I cannot browse the web, run a shell, run tests, take screenshots or send files back.",
+	"I have a Linux shell and files on my own small machine (1 GB of RAM, shared by everyone here), and each thread gets its own folder, so I can run code and commands for you.",
+	"I cannot browse the web beyond what curl in that shell gives, take screenshots or send files back.",
 	"The model is fixed: Kimi K3.1 Pro on Verda.",
 ].join("\n");
 

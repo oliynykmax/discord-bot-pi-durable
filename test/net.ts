@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-export type Call = { readonly method: string; readonly url: string; readonly body: any };
+export type Call = { readonly method: string; readonly url: string; readonly headers: Headers; readonly body: any };
 
 export type ModelTurn =
 	| { readonly text: string; readonly reasoning?: string }
@@ -50,7 +50,7 @@ export class FakeNet {
 			} catch {
 				// Non-JSON bodies stay as text.
 			}
-			const call = { method: request.method, url: request.url, body };
+			const call = { method: request.method, url: request.url, headers: request.headers, body };
 			this.calls.push(call);
 			for (const handler of this.handlers) {
 				const response = await handler(call);

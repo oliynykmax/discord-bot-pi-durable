@@ -462,6 +462,22 @@ export class Conversation extends DurableObject<Env> {
 		await this.host.jobs.push({ id: "deliver", fn: "deliver", time: Date.now(), singleflight: true });
 	}
 
+	/** Operator view of this thread for /admin/threads: inputs, how each run ended, and what is waiting to be posted. */
+	async debug() {
+		await this.lifecycle.start();
+		return {
+			status: await this.statusText(),
+			inputs: this.sql("SELECT message_id, kind, role, stage, reaction, note, created_at FROM bobik_inputs ORDER BY created_at"),
+			outbox: this.sql("SELECT group_id, part, state, attempts, reason, substr(content, 1, 300) AS content FROM bobik_outbox ORDER BY seq"),
+		};
+	}
+
+	async retryBlocked(): Promise<number> {
+		const parts = this.outbox.retryBlocked();
+		if (parts > 0) await this.deliverSoon();
+		return parts;
+	}
+
 	async statusText(): Promise<string> {
 		const pending = await this.harness.pending();
 		const running = pending.some((op) => op.status === "running");

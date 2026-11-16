@@ -43,7 +43,7 @@ const inputs = (stub: DurableObjectStub<Conversation>) =>
 	runInDurableObject(stub, (_o, state) => state.storage.sql.exec<{ message_id: string; role: string; stage: string; reaction: string }>("SELECT message_id, role, stage, reaction FROM bobik_inputs ORDER BY created_at").toArray());
 
 const outbox = (stub: DurableObjectStub<Conversation>) =>
-	runInDurableObject(stub, (_o, state) => state.storage.sql.exec<{ group_id: string; part: number; state: string; reason: string | null; generation: number }>("SELECT group_id, part, state, reason, generation FROM bobik_outbox ORDER BY seq").toArray());
+	runInDurableObject(stub, (_o, state) => state.storage.sql.exec<{ group_id: string; part: number; state: string; attempts: number; reason: string | null; generation: number }>("SELECT group_id, part, state, attempts, reason, generation FROM bobik_outbox ORDER BY seq").toArray());
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -279,18 +279,21 @@ describe("conversation", () => {
 		expect(net.sent(thread)).toHaveLength(1);
 	});
 
-	test("a missing channel blocks delivery visibly and !status reports it", async () => {
+	test("a temporary missing-channel response retries with the same nonce", async () => {
 		const net = new FakeNet().install().reply({ text: "nowhere to go" });
 		const thread = newThread();
 		let gone = true;
 		net.on((call) => (gone && call.method === "POST" && call.url.includes(`/channels/${thread}/messages`) ? Response.json({ code: 10003, message: "Unknown Channel" }, { status: 404 }) : undefined));
 		const stub = env.CONVERSATIONS.getByName(thread);
 		await stub.accept(input(thread, say("hi")));
-		await until(stub, () => outbox(stub), (rows) => rows[0]?.state === "blocked");
+		await until(stub, () => outbox(stub), (rows) => rows[0]?.state === "sending" && rows[0]?.attempts === 1);
 		gone = false;
-		await stub.accept(input(thread, { kind: "status" }));
-		const status = await until(stub, () => net.sent(thread).filter((c) => c.body.content.startsWith("Idle")), (s) => s.length === 1);
-		expect(status[0]!.body.content).toContain("1 blocked");
+		await runInDurableObject(stub, (object) => object.outbox.drain(() => Date.now() + 10_000));
+		const rows = await outbox(stub);
+		expect(rows[0]).toMatchObject({ state: "sent", attempts: 1 });
+		const sends = net.sent(thread);
+		expect(sends).toHaveLength(2);
+		expect(sends[0]!.body.nonce).toBe(sends[1]!.body.nonce);
 	});
 
 	test("long answers become ordered parts with one record each", async () => {

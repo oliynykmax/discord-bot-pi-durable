@@ -2,7 +2,7 @@
 # Installs bobik's shell host on Ubuntu 24.04 x86_64: the shell bridge, bobik's memory server and Caddy in front of both.
 # Safe to run again: each step converges to the same state.
 # Needs /etc/bobik/shell.env (root:root, mode 600) with SHELL_TOKEN=<the Worker's SHELL_TOKEN>; this script never writes it.
-# Needs Caddy, and Basic Memory installed for bobik as /home/bobik/.local/bin/bm with the project "bobik".
+# Needs Caddy, and the Rust Basic Memory port (basic-memory-rs, semantic build) installed for bobik as /home/bobik/.local/bin/bm-rs.
 # Run as root from a copy of shell-host/ that also holds the daemon as ./pi-env (or set PI_ENV_BIN).
 set -euo pipefail
 
@@ -13,8 +13,8 @@ pi_env=${PI_ENV_BIN:-$here/pi-env}
 die() { echo "install.sh: $*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || die "run as root"
 [[ -x $pi_env ]] || die "no pi-env daemon at $pi_env (copy node_modules/@earendil-works/pi-env/bin/pi-env-linux-x64/pi-env)"
-bm=/home/bobik/.local/bin/bm
-[[ -x $bm ]] || die "no Basic Memory at $bm; as bobik: uv tool install basic-memory, then bm project add bobik /home/bobik/memory"
+bm=/home/bobik/.local/bin/bm-rs
+[[ -x $bm ]] || die "no Basic Memory at $bm; build basic-memory-rs with --features semantic on Ubuntu 24.04, install it there, then as bobik: bm-rs project add bobik /home/bobik/memory"
 command -v caddy >/dev/null || die "Caddy is not installed"
 site=$(awk '/^[^{}#[:space:]]/ { print $1; exit }' "$here/Caddyfile")
 

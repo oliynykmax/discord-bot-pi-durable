@@ -69,6 +69,11 @@ export class Outbox {
 		}
 	}
 
+	/** Operator retry: blocked parts go back to pending. Uncertain parts stay, since one of them may already be posted. */
+	retryBlocked(now = Date.now()): number {
+		return this.sql.exec("UPDATE bobik_outbox SET state = 'pending', generation = generation + 1, attempted_at = NULL, retry_at = ?, reason = NULL WHERE state = 'blocked'", now).rowsWritten;
+	}
+
 	problems(): OutboxProblems {
 		const rows = this.sql.exec<{ state: string; n: number }>("SELECT state, COUNT(*) AS n FROM bobik_outbox WHERE state IN ('blocked', 'uncertain', 'pending', 'sending') GROUP BY state").toArray();
 		const count = (s: string) => rows.find((r) => r.state === s)?.n ?? 0;
@@ -92,6 +97,18 @@ export class Outbox {
 		this.sql.exec("UPDATE bobik_outbox SET state = ?, reason = ? WHERE group_id = ? AND part >= ? AND state IN ('pending', 'sending')", state, reason, row.group_id, row.part);
 	}
 
+	/** Keep the row in `sending` so a retry reuses its Discord nonce and cannot duplicate a reply. */
+	#retry(row: Row, clock: () => number, reason: string): number | undefined {
+		const attempts = row.attempts + 1;
+		if (attempts >= MAX_ATTEMPTS) {
+			this.#settleGroup(row, "uncertain", reason);
+			return undefined;
+		}
+		const retryAt = clock() + backoff(attempts);
+		this.sql.exec("UPDATE bobik_outbox SET attempts = ?, retry_at = ? WHERE seq = ?", attempts, retryAt, row.seq);
+		return retryAt;
+	}
+
 	async #drain(clock: () => number): Promise<number | undefined> {
 		for (let sends = 0; sends < MAX_SENDS_PER_DRAIN; sends++) {
 			const row = this.#next();
@@ -100,7 +117,7 @@ export class Outbox {
 			if (row.retry_at > now) return row.retry_at;
 
 			if (row.state === "sending" && row.attempted_at !== null && now - row.attempted_at >= NONCE_WINDOW_MS) {
-				const outcome = await this.#reconcile(row);
+				const outcome = await this.#reconcile(row, clock);
 				if (outcome === "retry") return this.#next()?.retry_at;
 				continue;
 			}
@@ -119,32 +136,39 @@ export class Outbox {
 				return clock() + result.retryAfterMs;
 			}
 			if (result.kind === "rejected") {
+				// Discord can briefly report a just-created thread as unknown. Treat a 404 as
+				// transient, while retaining the nonce so a later accepted request is idempotent.
+				if (result.status === 404) {
+					const retryAt = this.#retry(row, clock, "missing-channel");
+					if (retryAt !== undefined) return retryAt;
+					continue;
+				}
 				const reason = result.status === 403 ? "permission" : result.status === 404 ? "missing-channel" : `rejected-${result.status}`;
-				this.#settleGroup(row, "blocked", reason);
+				this.#settleGroup(row, "blocked", result.code === undefined ? reason : `${reason}:${result.code}`);
 				continue;
 			}
-			const attempts = row.attempts + 1;
-			if (attempts >= MAX_ATTEMPTS) {
-				this.#settleGroup(row, "uncertain", "retry-limit");
-				continue;
-			}
-			const retryAt = clock() + backoff(attempts);
-			this.sql.exec("UPDATE bobik_outbox SET attempts = ?, retry_at = ? WHERE seq = ?", attempts, retryAt, row.seq);
-			return retryAt;
+			const retryAt = this.#retry(row, clock, "retry-limit");
+			if (retryAt !== undefined) return retryAt;
 		}
 		return this.#next()?.retry_at;
 	}
 
-	async #reconcile(row: Row): Promise<"settled" | "retry"> {
+	async #reconcile(row: Row, clock: () => number): Promise<"settled" | "retry"> {
 		const history = await this.rest().messagesAfter(this.channelId(), snowflakeAt((row.attempted_at ?? 0) - 5_000));
 		if (!history.ok) {
 			if (history.kind === "rejected") {
-				this.#settleGroup(row, "blocked", history.status === 403 ? "permission" : "missing-channel");
-				return "settled";
+				if (history.status !== 404) {
+					this.#settleGroup(row, "blocked", history.status === 403 ? "permission" : `rejected-${history.status}`);
+					return "settled";
+				}
+				return this.#retry(row, clock, "missing-channel") === undefined ? "settled" : "retry";
 			}
 			const delay = history.kind === "rate_limited" ? history.retryAfterMs : backoff(row.attempts + 1);
-			this.sql.exec("UPDATE bobik_outbox SET attempts = attempts + 1, retry_at = ? WHERE seq = ?", Date.now() + delay, row.seq);
-			if (row.attempts + 1 >= MAX_ATTEMPTS) this.#settleGroup(row, "uncertain", "history-unavailable");
+			if (row.attempts + 1 >= MAX_ATTEMPTS) {
+				this.#settleGroup(row, "uncertain", "history-unavailable");
+				return "settled";
+			}
+			this.sql.exec("UPDATE bobik_outbox SET attempts = attempts + 1, retry_at = ? WHERE seq = ?", clock() + delay, row.seq);
 			return "retry";
 		}
 		const nonce = await nonceFor(`${row.group_id}:${row.part}:${row.generation}`);

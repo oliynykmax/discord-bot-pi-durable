@@ -136,6 +136,10 @@ export class DiscordGateway extends DurableObject<Env> {
 		await this.ensure();
 	}
 
+	boundThreadIds(): string[] {
+		return [...this.#bound];
+	}
+
 	status(): GatewayStatus {
 		const counts = this.sql<{ state: string; n: number }>("SELECT state, COUNT(*) AS n FROM gw_journal GROUP BY state");
 		const ready = Number(this.get("last_ready_at") ?? 0);

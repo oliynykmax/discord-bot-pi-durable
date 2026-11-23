@@ -17,3 +17,4 @@ app-secrets.json
 .DS_Store
 worker-configuration.d.ts
 shell-host/pi-env
+!.env.example

@@ -2,7 +2,6 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bobik-pi-durable",
   "main": "src/worker.ts",
-  "account_id": "b9065ca4c59a3d2ebb9430692a07bf2c",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
   "alias": { "node:child_process": "./src/shell/child-process.ts" },
@@ -18,13 +17,10 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DiscordGateway", "Conversation"] }],
+  // Operator-specific settings (GH_APP_ID, GH_INSTALLATION_ID, GH_REPO, SHELL_URL, MEMORY_MCP_URL)
+  // are passed at deploy time with --var; see .env.example.
   "vars": {
-    "GH_APP_ID": "5745150",
-    "GH_INSTALLATION_ID": "181608443",
-    "GH_REPO": "oliynykmax/junction-2026",
     "GH_BASE_BRANCH": "main",
-    "VERDA_BASE_URL": "https://inference.verda.com/v1",
-    "SHELL_URL": "wss://138-2-191-62.sslip.io/pi-env",
-    "MEMORY_MCP_URL": "https://138-2-191-62.sslip.io/mcp"
+    "VERDA_BASE_URL": "https://inference.verda.com/v1"
   }
 }

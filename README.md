@@ -65,24 +65,25 @@ A cron trigger runs every minute. It reconnects the gateway only when it is pers
 
 ### Deploy
 
-Account `b9065ca4c59a3d2ebb9430692a07bf2c`, Worker `bobik-pi-durable`, on `workers.dev` with no custom routes, and Worker `bobik-codemode-sandbox` with no routes at all. Deploy the sandbox first, since the main Worker binds its class by `script_name`. Deployed endpoint: https://bobik-pi-durable.olejnikmax.workers.dev/healthz.
+Worker `bobik-pi-durable`, on `workers.dev` with no custom routes, and Worker `bobik-codemode-sandbox` with no routes at all. Deploy the sandbox first, since the main Worker binds its class by `script_name`. The health endpoint is `https://bobik-pi-durable.<your-subdomain>.workers.dev/healthz`.
 
 ```sh
+SUBDOMAIN=your-subdomain     # your workers.dev subdomain
 bun install
 bun run check                 # typecheck, tests, wrangler deploy --dry-run
 bunx wrangler deploy -c codemode-sandbox/wrangler.jsonc   # the code mode sandbox Worker and its SQLite class
-bunx wrangler deploy          # creates the Worker and both SQLite Durable Object classes
+bunx wrangler deploy --var GH_APP_ID:... --var GH_INSTALLATION_ID:... --var GH_REPO:owner/name   # creates the Worker and both SQLite Durable Object classes; add --var SHELL_URL:... --var MEMORY_MCP_URL:... for the shell host
 scripts/provision.sh          # uploads secrets, see below
-curl -s https://bobik-pi-durable.olejnikmax.workers.dev/healthz
+curl -s https://bobik-pi-durable.$SUBDOMAIN.workers.dev/healthz
 podman ps --filter name=hackbot   # the old bot must stay stopped: two sessions on one token both receive every event
 ADMIN=$(cat ~/.local/state/bobik-pi-durable/admin-secret)
-curl -s -X POST -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.olejnikmax.workers.dev/admin/gateway/start
-curl -s -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.olejnikmax.workers.dev/admin/status
+curl -s -X POST -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.$SUBDOMAIN.workers.dev/admin/gateway/start
+curl -s -H "authorization: Bearer $ADMIN" https://bobik-pi-durable.$SUBDOMAIN.workers.dev/admin/status
 ```
 
 `scripts/provision.sh` runs `fnox exec` in `~/hackathon-bot` and reads only `DISCORD_TOKEN` and `GH_APP_PRIVATE_KEY` from it. It converts the PKCS#1 App key to PKCS#8 with `openssl pkcs8 -topk8 -nocrypt` in a pipe, reads only `VERDA_API_KEY` from `~/.local/state/j26-verda/app-secrets.json`, and imports `ALLOWED_USER_IDS`, `ALLOWED_ROLE_IDS` and `CHANNEL_IDS` from `~/hackathon-bot/bot.env`. It creates an admin secret in `~/.local/state/bobik-pi-durable/admin-secret` (mode 600) unless one exists. Everything goes to `wrangler secret bulk` on stdin, so no value reaches argv, logs or this repository. Only these names are written: `DISCORD_TOKEN`, `GH_APP_PRIVATE_KEY_PKCS8`, `VERDA_API_KEY`, `ADMIN_SECRET`, `ALLOWED_USER_IDS`, and `ALLOWED_ROLE_IDS` and `CHANNEL_IDS` when set.
 
-Non-secret settings live in `wrangler.jsonc`: `GH_APP_ID`, `GH_INSTALLATION_ID`, `GH_REPO`, `GH_BASE_BRANCH`, `VERDA_BASE_URL`, `SHELL_URL`, `MEMORY_MCP_URL`. Memory reuses the `SHELL_TOKEN` secret.
+`wrangler.jsonc` holds the generic settings `GH_BASE_BRANCH` and `VERDA_BASE_URL`. Pass your own `GH_APP_ID`, `GH_INSTALLATION_ID`, `GH_REPO`, and optionally `SHELL_URL` and `MEMORY_MCP_URL`, at deploy time with `--var NAME:VALUE`, or with `DEPLOY_VARS` in GitHub Actions. Every setting is in `.env.example`. Memory reuses the `SHELL_TOKEN` secret. To deploy from GitHub Actions on every push to `main`, configure the `production` environment as described at the top of `.github/workflows/deploy.yml`.
 
 ### Shell host
 

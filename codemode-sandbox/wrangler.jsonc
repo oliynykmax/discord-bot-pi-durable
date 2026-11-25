@@ -2,7 +2,6 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "bobik-codemode-sandbox",
   "main": "src/index.ts",
-  "account_id": "b9065ca4c59a3d2ebb9430692a07bf2c",
   "compatibility_date": "2026-11-01",
   "workers_dev": false,
   "preview_urls": false,
